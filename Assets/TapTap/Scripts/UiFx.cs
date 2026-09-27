@@ -10,7 +10,7 @@ namespace TapTap
     /// </summary>
     public class UiFx
     {
-        enum Kind { Spark, Ring, Confetti }
+        enum Kind { Spark, Ring, Confetti, Twinkle }
 
         class P
         {
@@ -84,6 +84,22 @@ namespace TapTap
             p.img.rectTransform.localRotation = Quaternion.identity;
         }
 
+        /// <summary>その場でふわっと大きくなって消える星形のきらめき。</summary>
+        public void Twinkle(Vector2 at, Color color, float size)
+        {
+            var p = Get();
+            if (p == null) return;
+            p.kind = Kind.Twinkle;
+            p.pos = at;
+            p.vel = new Vector2(0f, 18f);
+            p.max = 0.45f + Random.value * 0.2f;
+            p.size = size;
+            p.color = color;
+            p.rot = Random.value * 90f;
+            p.vr = (Random.value < 0.5f ? -1f : 1f) * (90f + Random.value * 90f);
+            p.img.sprite = Gfx.Star;
+        }
+
         public void ConfettiRain()
         {
             var colors = new[]
@@ -138,6 +154,14 @@ namespace TapTap
                         float sz = p.size * (1f - t * 0.6f) * 2.6f * 2f;
                         rt.sizeDelta = new Vector2(sz, sz);
                         c.a = 1f - t;
+                        break;
+                    case Kind.Twinkle:
+                        p.pos += p.vel * dt;
+                        p.rot += p.vr * dt;
+                        float ts = p.size * Mathf.Sin(Mathf.PI * t);
+                        rt.sizeDelta = new Vector2(ts, ts);
+                        rt.localRotation = Quaternion.Euler(0, 0, p.rot);
+                        c.a = Mathf.Sin(Mathf.PI * t);
                         break;
                     case Kind.Confetti:
                         p.vel.y -= p.g * dt;

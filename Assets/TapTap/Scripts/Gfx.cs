@@ -9,7 +9,7 @@ namespace TapTap
     /// </summary>
     public static class Gfx
     {
-        public static Sprite ShadedCircle, SoftDot, Ring, RoundRect, Vignette, Radial;
+        public static Sprite ShadedCircle, SoftDot, Ring, RoundRect, Vignette, Radial, Star;
         public static Font Font;
 
         static readonly string[] JapaneseFonts =
@@ -53,6 +53,15 @@ namespace TapTap
             {
                 float d = Vector2.Distance(new Vector2(u, v), new Vector2(0.5f, 0.5f)) * 2f;
                 return new Color(1, 1, 1, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.55f, 1.3f, d)));
+            });
+            // 4 方向に光が伸びるきらめき (アストロイド形 + 中心のにじみ)
+            Star = MakeSprite(64, (u, v) =>
+            {
+                float x = Mathf.Abs(u * 2f - 1f), y = Mathf.Abs(v * 2f - 1f);
+                float s = Mathf.Sqrt(x) + Mathf.Sqrt(y);
+                float spike = Mathf.Clamp01((1f - s) * 3f);
+                float core = Mathf.Clamp01(1f - Mathf.Sqrt(x * x + y * y) * 2.5f);
+                return new Color(1, 1, 1, Mathf.Clamp01(spike + core * core));
             });
             const int rr = 64, radius = 24;
             RoundRect = MakeSprite(rr, (u, v) =>

@@ -44,6 +44,7 @@ namespace TapTap
             public float anim;          // 出現してからの経過 (演出用)
             public float hitT = 9f;     // タップ成功演出
             public float idleT = 9f;    // 空マスを押したときの沈み込み
+            public float sparkleT;      // 金ボタンのきらめき発生タイマー
         }
 
         // ---------- palette ----------
@@ -837,7 +838,7 @@ namespace TapTap
                 c.anim += dt;
                 c.hitT += dt;
                 c.idleT += dt;
-                float scale = 1f, rot = 0f;
+                float scale = 1f, rot = 0f, glowScale = -1f;
                 Color body, glow;
                 float shine;
                 switch (c.kind)
@@ -851,11 +852,19 @@ namespace TapTap
                         scale = c.anim < 0.18f ? PopIn(c.anim) : 1f + 0.07f * Mathf.PingPong((c.anim - 0.18f) / 0.45f, 1f);
                         break;
                     case CellKind.Gold:
-                        body = Gfx.Hex("#ffe08a"); glow = GoldDeep * new Color(1, 1, 1, 0.8f); shine = 0.85f;
+                    {
+                        // 1 秒 3 回ほど脈打つように明るさ・光のにじみを変え、周りに星をまたたかせる
+                        float glint = 0.5f + 0.5f * Mathf.Sin(c.anim * Mathf.PI * 6f);
+                        body = Color.Lerp(Gfx.Hex("#ffd75e"), Gfx.Hex("#fff0b0"), glint);
+                        glow = Color.Lerp(GoldDeep, Gfx.Hex("#ffe27a"), glint);
+                        shine = Mathf.Lerp(0.8f, 1f, glint);
                         float spin = c.anim % 1f;
                         scale = c.anim < 0.18f ? PopIn(c.anim) : 1f + 0.1f * Mathf.Sin(spin * Mathf.PI);
                         rot = -spin * 360f;
+                        glowScale = scale * Mathf.Lerp(1.4f, 1.85f, glint);
+                        EmitGoldSparkles(c, dt);
                         break;
+                    }
                     default:
                         body = CellOff; glow = Color.clear; shine = 0.06f;
                         if (c.hitT < 0.18f)
@@ -871,9 +880,23 @@ namespace TapTap
                 c.body.rectTransform.localRotation = Quaternion.Euler(0, 0, rot);
                 c.body.color = body;
                 c.glow.color = glow;
-                c.glow.rectTransform.localScale = Vector3.one * scale;
+                c.glow.rectTransform.localScale = Vector3.one * (glowScale > 0f ? glowScale : scale);
                 c.shine.color = new Color(1, 1, 1, shine);
             }
+        }
+
+        static readonly Color[] SparkleColors = { Color.white, Gfx.Hex("#fff6d6"), Gfx.Hex("#ffe08a") };
+
+        void EmitGoldSparkles(Cell c, float dt)
+        {
+            c.sparkleT -= dt;
+            if (c.sparkleT > 0f) return;
+            c.sparkleT = (strongFx ? 0.07f : 0.16f) + UnityEngine.Random.value * 0.05f;
+            Vector2 center = fxLayer.InverseTransformPoint(c.root.position);
+            float w = c.root.rect.width;
+            var offset = UnityEngine.Random.insideUnitCircle.normalized * (w * UnityEngine.Random.Range(0.35f, 0.75f));
+            fx.Twinkle(center + offset, SparkleColors[UnityEngine.Random.Range(0, SparkleColors.Length)],
+                w * UnityEngine.Random.Range(0.4f, 0.65f));
         }
 
         static float PopIn(float t) => t < 0.18f ? Mathf.Lerp(0.55f, 1f, 1f - (1f - t / 0.18f) * (1f - t / 0.18f)) : 1f;
