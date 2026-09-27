@@ -46,12 +46,18 @@ namespace TapTap
         public void Play()
         {
             if (baseSrc.clip == null) Build();
-            // 2 つのレイヤーを同じ DSP 時刻から鳴らしてずれないようにする
-            double at = AudioSettings.dspTime + 0.05;
             baseSrc.Stop();
             feverSrc.Stop();
+#if UNITY_WEBGL && !UNITY_EDITOR
+            // WebGL は PlayScheduled に対応していないので同じフレームで鳴らす
+            baseSrc.Play();
+            feverSrc.Play();
+#else
+            // 2 つのレイヤーを同じ DSP 時刻から鳴らしてずれないようにする
+            double at = AudioSettings.dspTime + 0.05;
             baseSrc.PlayScheduled(at);
             feverSrc.PlayScheduled(at);
+#endif
             baseSrc.volume = baseTarget = BaseVolume;
             feverSrc.volume = feverTarget = 0f;
         }

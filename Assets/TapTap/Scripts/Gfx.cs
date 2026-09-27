@@ -11,6 +11,7 @@ namespace TapTap
     {
         public static Sprite ShadedCircle, SoftDot, Ring, RoundRect, Vignette, Radial, Star;
         public static Font Font;
+        static bool bundledFont;
 
         static readonly string[] JapaneseFonts =
         {
@@ -72,11 +73,17 @@ namespace TapTap
                 return new Color(1, 1, 1, Mathf.Clamp01(radius - d + 0.5f));
             }, new Vector4(radius, radius, radius, radius));
 
-            var installed = Font.GetOSInstalledFontNames();
-            var available = JapaneseFonts.Where(n => installed.Contains(n)).ToArray();
-            Font = available.Length > 0
-                ? Font.CreateDynamicFontFromOSFont(available, 32)
-                : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            // WebGL では OS フォントが使えないので、同梱した M PLUS Rounded 1c (Bold) を優先して使う
+            Font = Resources.Load<Font>("Fonts/MPLUSRounded1c-Bold");
+            bundledFont = Font != null;
+            if (!bundledFont)
+            {
+                var installed = Font.GetOSInstalledFontNames();
+                var available = JapaneseFonts.Where(n => installed.Contains(n)).ToArray();
+                Font = available.Length > 0
+                    ? Font.CreateDynamicFontFromOSFont(available, 32)
+                    : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            }
         }
 
         delegate Color PixelFn(float u, float v);
@@ -170,7 +177,8 @@ namespace TapTap
             t.fontSize = size;
             t.color = color;
             t.alignment = anchor;
-            t.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
+            // 同梱フォントはもともと太字なので、疑似ボールドを重ねない
+            t.fontStyle = bold && !bundledFont ? FontStyle.Bold : FontStyle.Normal;
             t.horizontalOverflow = HorizontalWrapMode.Overflow;
             t.verticalOverflow = VerticalWrapMode.Overflow;
             t.raycastTarget = false;

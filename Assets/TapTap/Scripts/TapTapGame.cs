@@ -734,6 +734,12 @@ namespace TapTap
             if (paused && state == State.Playing) TogglePause();
         }
 
+        // ブラウザ (WebGL) でタブやウィンドウを離れたときも一時停止する
+        void OnApplicationFocus(bool focused)
+        {
+            if (!focused && state == State.Playing) TogglePause();
+        }
+
         // =====================================================================
         // rendering
         // =====================================================================

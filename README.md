@@ -32,6 +32,24 @@
 /Applications/Unity/Hub/Editor/6000.3.25f1/Unity.app/Contents/MacOS/Unity -batchmode -nographics -projectPath . -executeMethod TapTap.EditorTools.TapTapBuild.BuildMac -quit
 ```
 
+## WebGL ビルド (unityroom 用)
+
+WebGL Build Support モジュールが必要。メニュー **TapTap > WebGL をビルド (unityroom 用)** で `Builds/WebGL` に出力される
+(540×960、Gzip 圧縮、Decompression Fallback なし)。unityroom の「WebGL アップロード」には `Builds/WebGL/Build/` の 4 ファイルを拡張子ごとに登録する。
+
+| ファイル | unityroom の欄 |
+|---|---|
+| `WebGL.loader.js` | loader.js |
+| `WebGL.data.gz` | data |
+| `WebGL.framework.js.gz` | framework.js |
+| `WebGL.wasm.gz` | wasm |
+
+コマンドラインからは:
+
+```bash
+/Applications/Unity/Hub/Editor/6000.3.25f1/Unity.app/Contents/MacOS/Unity -batchmode -nographics -projectPath . -executeMethod TapTap.EditorTools.TapTapBuild.BuildWebGL -quit
+```
+
 ## 構成
 
 画像・音声アセットは使っていない。スプライト・フォント・効果音・BGM はすべて実行時にコードで生成している。
@@ -44,9 +62,10 @@
 | `Assets/TapTap/Scripts/Bgm.cs` | BGM の合成とループ再生 (128 BPM、通常とフィーバーの 2 レイヤー) |
 | `Assets/TapTap/Scripts/Gfx.cs` | 生成スプライト、日本語 OS フォント読み込み、UI 部品ヘルパー |
 | `Assets/TapTap/Editor/TapTapSetup.cs` | Main シーンの自動生成とビルド設定登録 |
-| `Assets/TapTap/Editor/TapTapBuild.cs` | Mac アプリのビルド (メニュー / コマンドライン) |
+| `Assets/TapTap/Editor/TapTapBuild.cs` | Mac / WebGL のビルド (メニュー / コマンドライン) |
+| `Assets/Resources/Fonts/` | 同梱フォント M PLUS Rounded 1c Bold とライセンス |
 
 ## 補足
 
-- 日本語はレガシー `Text` と OS フォント (ヒラギノ / 游ゴシック / Noto Sans CJK など) で表示する
+- 日本語はレガシー `Text` と同梱フォント [M PLUS Rounded 1c](https://fonts.google.com/specimen/M+PLUS+Rounded+1c) (SIL Open Font License 1.1、`Assets/Resources/Fonts/OFL.txt`) で表示する。WebGL では OS フォントが使えないため同梱している
 - 強い光の点滅は 0.34 秒に 1 回までに制限している。「演出 弱」にするとフラッシュ・揺れ・パーティクルが控えめになる
