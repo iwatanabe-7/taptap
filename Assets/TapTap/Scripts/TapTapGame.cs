@@ -69,6 +69,7 @@ namespace TapTap
         readonly List<Cell> cells = new List<Cell>();
         int score, best, lives = 3, combo, maxCombo, feverCharge, lastLevel, lastSec = 60, beatCount;
         float spawnTimer, hitStop, feverTime, beatTimer, timeLeft = TimeLimit;
+        float playTime; // 1 ラウンドの実プレイ時間 (一時停止中は数えない)
         bool strongFx = true;
 
         // ---------- UI refs ----------
@@ -81,6 +82,7 @@ namespace TapTap
         Text scoreText, bestText, startBestText, timerText, timeBonusText, meterLabel, comboLabel;
         Text toastMain, toastSub, slamText, fxBtnText, finalScore, finalCombo, finalBest, gameoverTitle;
         Text[] lifeTexts;
+        Text consentText;
         CanvasGroup toastGroup, slamGroup;
         GameObject startOverlay, pauseOverlay, gameoverOverlay, newBadge;
         readonly List<RectTransform> drifters = new List<RectTransform>();
@@ -89,6 +91,7 @@ namespace TapTap
         UiFx fx;
         Sfx sfx;
         Bgm bgm;
+        PlayAnalytics analytics;
 
         // ---------- animation state ----------
         float scoreBumpT = 9f, slamT = 9f, toastT = 9f, flashT = 9f, beatGlowT = 9f;
@@ -108,6 +111,7 @@ namespace TapTap
             EnsureSceneBasics();
             sfx = gameObject.AddComponent<Sfx>();
             bgm = gameObject.AddComponent<Bgm>();
+            analytics = gameObject.AddComponent<PlayAnalytics>();
             best = PlayerPrefs.GetInt(BestKey, 0);
             strongFx = PlayerPrefs.GetInt(FxKey, 1) == 1;
             BuildUi();
@@ -117,6 +121,7 @@ namespace TapTap
             RenderMeter();
             RenderLives();
             RenderTimer();
+            RenderConsent();
         }
 
         static void EnsureSceneBasics()
@@ -351,18 +356,25 @@ namespace TapTap
         void BuildOverlays(Transform root)
         {
             // start
-            startOverlay = Overlay(root, "Start", 470, out var p);
-            Gfx.Label(p, "タプタプ", 30, TextPrimary).rectTransform.Place(new Vector2(0, 190), new Vector2(300, 40));
+            startOverlay = Overlay(root, "Start", 540, out var p);
+            Gfx.Label(p, "タプタプ", 30, TextPrimary).rectTransform.Place(new Vector2(0, 225), new Vector2(300, 40));
             var tag = Gfx.Label(p, "青と金を押し続けてコンボ、赤を押すとリセット。\n制限時間は60秒、金ボタンで+2秒。\n" +
                                    "10コンボでフィーバー突入、スコア2倍。\n出た瞬間に押せば PERFECT！", 14, TextDim, bold: false);
             tag.lineSpacing = 1.35f;
-            tag.rectTransform.Place(new Vector2(0, 100), new Vector2(300, 110));
-            startBestText = Stat(p, new Vector2(0, 5), "ベスト");
-            Gfx.Button(p, "スタート", new Vector2(0, -85), new Vector2(290, 52), Blue, 18, StartGame, out _);
-            var note = Gfx.Label(p, "強い光の点滅があります。気分が悪くなったら\n「演出 弱」に切り替えるか休憩してください。", 11,
+            tag.rectTransform.Place(new Vector2(0, 135), new Vector2(300, 110));
+            startBestText = Stat(p, new Vector2(0, 40), "ベスト");
+            Gfx.Button(p, "スタート", new Vector2(0, -50), new Vector2(290, 52), Blue, 18, StartGame, out _);
+            Gfx.Button(p, "", new Vector2(0, -112), new Vector2(290, 36), PanelBorder, 13, () =>
+            {
+                analytics.Consent = !analytics.Consent;
+                RenderConsent();
+            }, out consentText);
+            var note = Gfx.Label(p, "匿名のプレイ統計（プレイ回数・スコア・プレイ時間など）を\n" +
+                                    "ゲーム改善のために送信します。上のボタンでオフにできます。\n\n" +
+                                    "強い光の点滅があります。気分が悪くなったら\n「演出 弱」に切り替えるか休憩してください。", 11,
                 TextDim, bold: false);
             note.lineSpacing = 1.3f;
-            note.rectTransform.Place(new Vector2(0, -160), new Vector2(300, 40));
+            note.rectTransform.Place(new Vector2(0, -200), new Vector2(300, 90));
 
             // pause
             pauseOverlay = Overlay(root, "Pause", 270, out p);
@@ -424,6 +436,7 @@ namespace TapTap
             AnimateCells(dt);
 
             if (state != State.Playing) return;
+            playTime += dt;
             if (hitStop > 0f) { hitStop -= dt; return; }
 
             timeLeft -= dt;
@@ -657,7 +670,7 @@ namespace TapTap
         void ResetRound()
         {
             score = 0; lives = 3; combo = 0; maxCombo = 0; feverCharge = 0; feverTime = 0f;
-            timeLeft = TimeLimit; lastSec = 60; spawnTimer = 0.6f; lastLevel = 0; hitStop = 0f;
+            timeLeft = TimeLimit; lastSec = 60; spawnTimer = 0.6f; lastLevel = 0; hitStop = 0f; playTime = 0f;
             foreach (var c in cells) ClearCell(c);
             scoreText.text = "0";
             RenderTimer();
@@ -670,6 +683,8 @@ namespace TapTap
         /// <summary>ゲームオーバー画面から、ベストスコアつきのスタート画面へ戻る。</summary>
         void ShowStartScreen()
         {
+            if (state == State.Paused)
+                analytics.RoundEnded(PlayAnalytics.Result.Quit, score, maxCombo, playTime, lives);
             state = State.Ready;
             bgm.Stop();
             ResetRound();
@@ -683,6 +698,7 @@ namespace TapTap
             startOverlay.SetActive(false);
             state = State.Playing;
             bgm.Play();
+            analytics.RoundStarted();
             RenderLives();
             Slam("START!", Color.white);
             sfx.Chord(new[] { 523f, 784f }, 0.2f, Sfx.Wave.Triangle, 0.12f);
@@ -690,6 +706,8 @@ namespace TapTap
 
         void EndGame(bool timeUp)
         {
+            analytics.RoundEnded(timeUp ? PlayAnalytics.Result.Clear : PlayAnalytics.Result.GameOver, score, maxCombo,
+                playTime, lives);
             state = State.GameOver;
             bgm.Stop();
             feverTime = 0f;
@@ -743,6 +761,8 @@ namespace TapTap
         // =====================================================================
         // rendering
         // =====================================================================
+
+        void RenderConsent() => consentText.text = analytics.Consent ? "プレイ統計の送信：オン" : "プレイ統計の送信：オフ";
 
         void ApplyFxMode()
         {
