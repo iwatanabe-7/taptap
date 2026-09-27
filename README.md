@@ -2,6 +2,10 @@
 
 4×4 のボタンが光る反射神経ゲーム。HTML 版「タプタプ」を Unity 6.3 LTS (6000.3.25f1) で再実装したもの。
 
+| スタート | プレイ中 (金ボタン) | フィーバー | 一時停止 | タイムアップ |
+|:---:|:---:|:---:|:---:|:---:|
+| <img src="Docs/screenshots/start.png" width="160"> | <img src="Docs/screenshots/play.png" width="160"> | <img src="Docs/screenshots/fever.png" width="160"> | <img src="Docs/screenshots/pause.png" width="160"> | <img src="Docs/screenshots/gameover.png" width="160"> |
+
 ## 遊び方
 
 - **青** を押す → +1、**金** を押す → +5 と残り時間 +2 秒
@@ -9,6 +13,8 @@
 - 制限時間 60 秒。出た瞬間 (0.28 秒以内) に押すと PERFECT で +1
 - 5 コンボごとにボーナス +1、10 コンボでフィーバー (7 秒間スコア 2 倍)
 - スコアが上がるほど出現が速く・同時に多く・赤が多くなる
+- 一時停止画面から「再開する」か「最初からやり直す」(スタート画面へ戻る) を選べる
+- プレイ中は BGM が流れ、フィーバー中はハイハットと高音アルペジオが加わって盛り上がる
 - ベストスコアと「演出 強/弱」設定は PlayerPrefs に保存
 
 ## 開き方
@@ -28,13 +34,14 @@
 
 ## 構成
 
-画像・音声アセットは使っていない。スプライト・フォント・効果音はすべて実行時にコードで生成している。
+画像・音声アセットは使っていない。スプライト・フォント・効果音・BGM はすべて実行時にコードで生成している。
 
 | ファイル | 役割 |
 |---|---|
 | `Assets/TapTap/Scripts/TapTapGame.cs` | ゲームロジック、UI 構築、演出 (シェイク・スラム文字・フラッシュ等) |
 | `Assets/TapTap/Scripts/UiFx.cs` | UI 上の火花・リング・紙吹雪パーティクル |
 | `Assets/TapTap/Scripts/Sfx.cs` | 効果音のリアルタイム合成 (サイン/矩形/三角/ノコギリ波・ノイズ) |
+| `Assets/TapTap/Scripts/Bgm.cs` | BGM の合成とループ再生 (128 BPM、通常とフィーバーの 2 レイヤー) |
 | `Assets/TapTap/Scripts/Gfx.cs` | 生成スプライト、日本語 OS フォント読み込み、UI 部品ヘルパー |
 | `Assets/TapTap/Editor/TapTapSetup.cs` | Main シーンの自動生成とビルド設定登録 |
 | `Assets/TapTap/Editor/TapTapBuild.cs` | Mac アプリのビルド (メニュー / コマンドライン) |

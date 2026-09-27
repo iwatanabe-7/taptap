@@ -88,6 +88,7 @@ namespace TapTap
 
         UiFx fx;
         Sfx sfx;
+        Bgm bgm;
 
         // ---------- animation state ----------
         float scoreBumpT = 9f, slamT = 9f, toastT = 9f, flashT = 9f, beatGlowT = 9f;
@@ -106,6 +107,7 @@ namespace TapTap
             Gfx.Init();
             EnsureSceneBasics();
             sfx = gameObject.AddComponent<Sfx>();
+            bgm = gameObject.AddComponent<Bgm>();
             best = PlayerPrefs.GetInt(BestKey, 0);
             strongFx = PlayerPrefs.GetInt(FxKey, 1) == 1;
             BuildUi();
@@ -363,9 +365,11 @@ namespace TapTap
             note.rectTransform.Place(new Vector2(0, -160), new Vector2(300, 40));
 
             // pause
-            pauseOverlay = Overlay(root, "Pause", 200, out p);
-            Gfx.Label(p, "一時停止中", 26, TextPrimary).rectTransform.Place(new Vector2(0, 40), new Vector2(300, 40));
-            Gfx.Button(p, "再開する", new Vector2(0, -35), new Vector2(290, 52), Blue, 18, TogglePause, out _);
+            pauseOverlay = Overlay(root, "Pause", 270, out p);
+            Gfx.Label(p, "一時停止中", 26, TextPrimary).rectTransform.Place(new Vector2(0, 80), new Vector2(300, 40));
+            Gfx.Button(p, "再開する", new Vector2(0, 5), new Vector2(290, 52), Blue, 18, TogglePause, out _);
+            Gfx.Button(p, "最初からやり直す", new Vector2(0, -67), new Vector2(290, 52), PanelBorder, 18, ShowStartScreen,
+                out _);
             pauseOverlay.SetActive(false);
 
             // game over
@@ -448,10 +452,8 @@ namespace TapTap
                 beatTimer -= dt;
                 if (beatTimer <= 0f)
                 {
-                    beatTimer = 0.25f;
+                    beatTimer = 60f / 128f / 2f; // BGM (128 BPM) の 8 分音符に合わせる
                     beatCount++;
-                    if (beatCount % 2 == 1) sfx.Kick();
-                    else sfx.Tone(beatCount % 4 == 0 ? 1318 : 988, 0.06f, Sfx.Wave.Square, 0.05f);
                     if (strongFx && beatCount % 2 == 1) beatGlowT = 0f;
                 }
                 if (feverTime <= 0f)
@@ -627,6 +629,7 @@ namespace TapTap
         void StartFever()
         {
             feverTime = FeverDuration;
+            bgm.Fever = true;
             beatTimer = 0f;
             beatCount = 0;
             feverCharge = 0;
@@ -641,7 +644,11 @@ namespace TapTap
             Vibrate();
         }
 
-        void EndFever() => RenderMeter();
+        void EndFever()
+        {
+            bgm.Fever = false;
+            RenderMeter();
+        }
 
         // =====================================================================
         // state transitions
@@ -664,6 +671,7 @@ namespace TapTap
         void ShowStartScreen()
         {
             state = State.Ready;
+            bgm.Stop();
             ResetRound();
             RenderBest();
             startOverlay.SetActive(true);
@@ -674,6 +682,7 @@ namespace TapTap
             ResetRound();
             startOverlay.SetActive(false);
             state = State.Playing;
+            bgm.Play();
             RenderLives();
             Slam("START!", Color.white);
             sfx.Chord(new[] { 523f, 784f }, 0.2f, Sfx.Wave.Triangle, 0.12f);
@@ -682,6 +691,7 @@ namespace TapTap
         void EndGame(bool timeUp)
         {
             state = State.GameOver;
+            bgm.Stop();
             feverTime = 0f;
             foreach (var c in cells) ClearCell(c);
             RenderMeter();
@@ -714,8 +724,8 @@ namespace TapTap
 
         void TogglePause()
         {
-            if (state == State.Playing) state = State.Paused;
-            else if (state == State.Paused) state = State.Playing;
+            if (state == State.Playing) { state = State.Paused; bgm.Pause(); }
+            else if (state == State.Paused) { state = State.Playing; bgm.Resume(); }
             pauseOverlay.SetActive(state == State.Paused);
         }
 
