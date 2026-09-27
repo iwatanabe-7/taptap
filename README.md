@@ -50,6 +50,10 @@ WebGL Build Support モジュールが必要。メニュー **TapTap > WebGL を
 /Applications/Unity/Hub/Editor/6000.3.25f1/Unity.app/Contents/MacOS/Unity -batchmode -nographics -projectPath . -executeMethod TapTap.EditorTools.TapTapBuild.BuildWebGL -quit
 ```
 
+スマホのブラウザで開かれたときは、`Assets/Plugins/WebGL/TapTapMobile.jslib` がページに viewport を設定し、
+キャンバスを画面いっぱい (縦) に広げる。unityroom の再生ページは viewport 指定がなく PC 幅で縮小表示されるため。
+PC では何もしない。
+
 ## Unity Analytics
 
 Unity Gaming Services の Analytics (`com.unity.services.analytics` 6.3.0) でプレイ状況を集計する。
@@ -85,6 +89,7 @@ Unity Gaming Services の Analytics (`com.unity.services.analytics` 6.3.0) で�
 | `Assets/TapTap/Scripts/Bgm.cs` | BGM の合成とループ再生 (128 BPM、通常とフィーバーの 2 レイヤー) |
 | `Assets/TapTap/Scripts/Gfx.cs` | 生成スプライト、日本語 OS フォント読み込み、UI 部品ヘルパー |
 | `Assets/TapTap/Editor/TapTapSetup.cs` | Main シーンの自動生成とビルド設定登録 |
+| `Assets/Plugins/WebGL/TapTapMobile.jslib` | スマホのブラウザでキャンバスを全画面 (縦) にする |
 | `Assets/TapTap/Editor/TapTapBuild.cs` | Mac / WebGL のビルド (メニュー / コマンドライン) |
 | `Assets/Resources/Fonts/` | 同梱フォント M PLUS Rounded 1c Bold とライセンス |
 

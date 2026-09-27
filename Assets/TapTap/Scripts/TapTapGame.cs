@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -103,9 +104,17 @@ namespace TapTap
         // setup
         // =====================================================================
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+        [DllImport("__Internal")] static extern int TapTap_SetupMobileLayout(); // Plugins/WebGL/TapTapMobile.jslib
+#endif
+
         void Awake()
         {
             Application.targetFrameRate = 60;
+#if UNITY_WEBGL && !UNITY_EDITOR
+            // スマホのブラウザではキャンバスを画面いっぱいに広げる (縦持ち前提、レイアウトは CanvasScaler が追従)
+            TapTap_SetupMobileLayout();
+#endif
             Gfx.Init();
             EnsureSceneBasics();
             sfx = gameObject.AddComponent<Sfx>();
