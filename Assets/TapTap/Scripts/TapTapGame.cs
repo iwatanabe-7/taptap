@@ -77,6 +77,7 @@ namespace TapTap
         Canvas canvas;
         CanvasScaler scaler;
         RectTransform column, gridRT, fxLayer, slamRT, toastRT, timerRT, meterFillRT;
+        float gridScale = 1f, toastY = Top(812); // スマホの縦長画面ではグリッドを拡大する (UpdateMobileLayout)
         Image feverTint, gridBorder, gridGlow, flashImg, vignetteImg, beatGlowImg;
         RawImage meterFill;
         Texture2D meterTex, meterFeverTex;
@@ -433,6 +434,7 @@ namespace TapTap
             RunLater();
             fx.Tick(dt);
             AnimateUi(dt);
+            UpdateMobileLayout();
             AnimateCells(dt);
 
             if (state != State.Playing) return;
@@ -537,7 +539,7 @@ namespace TapTap
             if (state != State.Playing) return;
             var cell = cells[index];
             Vector2 p = fxLayer.InverseTransformPoint(cell.root.position);
-            float w = cell.root.rect.width;
+            float w = cell.root.rect.width * gridScale;
 
             if (cell.kind == CellKind.Idle)
             {
@@ -826,7 +828,7 @@ namespace TapTap
             gridBorder.color = fever ? Color.Lerp(Pink, Cyan, pulse) : PanelBorder;
             gridGlow.color = fever ? Color.Lerp(Pink, Cyan, pulse) * new Color(1, 1, 1, 0.35f) : Color.clear;
             gridPunchT += dt;
-            gridRT.localScale = Vector3.one * (gridPunchT < 0.08f ? 1.035f : 1f);
+            gridRT.localScale = Vector3.one * (gridScale * (gridPunchT < 0.08f ? 1.035f : 1f));
 
             // drifting icons
             float driftMul = fever && strongFx ? 4f : 1f;
@@ -877,6 +879,31 @@ namespace TapTap
             AnimateSlam(dt);
             AnimateToast(dt);
             AnimatePops(dt);
+        }
+
+        // グリッドの元の配置 (列の上端からの距離) と大きさ
+        const float GridCenterFromTop = 560f, GridHalf = 186f, RulesBottomFromTop = 360f, MaxGridScale = 1.35f;
+
+        /// <summary>
+        /// スマホで縦長の画面のときは、540x960 の列の上下に余る高さを使ってボタンのグリッドを大きくする
+        /// (幅 540 に収まる 1.35 倍まで)。PC では元の配置のまま。
+        /// </summary>
+        void UpdateMobileLayout()
+        {
+            float scale = 1f, centerFromTop = GridCenterFromTop;
+            if (Application.isMobilePlatform)
+            {
+                float extra = Mathf.Max(0f, ((RectTransform)canvas.transform).rect.height - RefH);
+                float bottomLimit = RefH + extra / 2f - 110f; // 下にトースト分の余白を残す
+                scale = Mathf.Clamp((bottomLimit - RulesBottomFromTop - 16f) / (GridHalf * 2f), 1f, MaxGridScale);
+                centerFromTop = Mathf.Max(GridCenterFromTop, RulesBottomFromTop + 8f + GridHalf * scale);
+            }
+            gridScale = scale;
+            var pos = new Vector2(0f, Top(centerFromTop));
+            gridRT.anchoredPosition = pos;
+            gridGlow.rectTransform.anchoredPosition = pos;
+            gridGlow.rectTransform.localScale = Vector3.one * scale;
+            toastY = Mathf.Min(Top(812f), Top(centerFromTop + GridHalf * scale + 52f));
         }
 
         void AnimateCells(float dt)
@@ -942,7 +969,7 @@ namespace TapTap
             if (c.sparkleT > 0f) return;
             c.sparkleT = (strongFx ? 0.07f : 0.16f) + UnityEngine.Random.value * 0.05f;
             Vector2 center = fxLayer.InverseTransformPoint(c.root.position);
-            float w = c.root.rect.width;
+            float w = c.root.rect.width * gridScale;
             var offset = UnityEngine.Random.insideUnitCircle.normalized * (w * UnityEngine.Random.Range(0.35f, 0.75f));
             fx.Twinkle(center + offset, SparkleColors[UnityEngine.Random.Range(0, SparkleColors.Length)],
                 w * UnityEngine.Random.Range(0.4f, 0.65f));
@@ -997,7 +1024,7 @@ namespace TapTap
             float target = toastT < 0.65f ? 1f : 0f;
             toastGroup.alpha = Mathf.MoveTowards(toastGroup.alpha, target, dt / 0.18f);
             float a = toastGroup.alpha;
-            toastRT.anchoredPosition = new Vector2(0, Top(812) - 8f * (1f - a));
+            toastRT.anchoredPosition = new Vector2(0, toastY - 8f * (1f - a));
             toastRT.localScale = Vector3.one * Mathf.Lerp(0.96f, 1f, a);
         }
 
