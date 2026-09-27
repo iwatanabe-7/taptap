@@ -7,6 +7,10 @@ mergeInto(LibraryManager.library, {
       (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua)); // iPadOS は Mac を名乗る
     if (!isMobile) return 0;
 
+    // unityroom はスマホで config.devicePixelRatio = 1 に固定しており、高解像度の画面では文字や画像が粗くなる。
+    // Unity はこの値を毎回参照するので、端末本来の値 (重くなりすぎないよう最大 3) に戻す
+    Module.devicePixelRatio = Math.min(window.devicePixelRatio || 1, 3);
+
     var meta = document.querySelector('meta[name="viewport"]');
     if (!meta) {
       meta = document.createElement('meta');

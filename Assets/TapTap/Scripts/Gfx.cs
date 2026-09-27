@@ -23,25 +23,25 @@ namespace TapTap
         {
             if (Font != null) return;
 
-            ShadedCircle = MakeSprite(128, (u, v) =>
+            ShadedCircle = MakeSprite(256, (u, v) =>
             {
                 float d = Vector2.Distance(new Vector2(u, v), new Vector2(0.5f, 0.5f)) * 2f;
-                float a = Mathf.Clamp01((1f - d) * 64f);
+                float a = Mathf.Clamp01((1f - d) * 128f);
                 // 左上にハイライトを置いた球体風の陰影
                 float h = Vector2.Distance(new Vector2(u, v), new Vector2(0.35f, 0.72f));
                 float b = Mathf.Lerp(1f, 0.55f, Mathf.Clamp01(h / 0.75f));
                 return new Color(b, b, b, a);
             });
-            SoftDot = MakeSprite(64, (u, v) =>
+            SoftDot = MakeSprite(128, (u, v) =>
             {
                 float d = Vector2.Distance(new Vector2(u, v), new Vector2(0.5f, 0.5f)) * 2f;
                 float a = Mathf.Clamp01(1f - d);
                 return new Color(1, 1, 1, a * a * (0.4f + 0.6f * a));
             });
-            Ring = MakeSprite(256, (u, v) =>
+            Ring = MakeSprite(512, (u, v) =>
             {
                 float d = Vector2.Distance(new Vector2(u, v), new Vector2(0.5f, 0.5f)) * 2f;
-                float a = Mathf.Clamp01(1f - Mathf.Abs(d - 0.95f) / 0.04f);
+                float a = Mathf.Clamp01(1f - Mathf.Abs(d - 0.95f) / 0.03f);
                 return new Color(1, 1, 1, a);
             });
             Radial = MakeSprite(128, (u, v) =>
@@ -56,7 +56,7 @@ namespace TapTap
                 return new Color(1, 1, 1, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.55f, 1.3f, d)));
             });
             // 4 方向に光が伸びるきらめき (アストロイド形 + 中心のにじみ)
-            Star = MakeSprite(64, (u, v) =>
+            Star = MakeSprite(128, (u, v) =>
             {
                 float x = Mathf.Abs(u * 2f - 1f), y = Mathf.Abs(v * 2f - 1f);
                 float s = Mathf.Sqrt(x) + Mathf.Sqrt(y);
@@ -64,14 +64,15 @@ namespace TapTap
                 float core = Mathf.Clamp01(1f - Mathf.Sqrt(x * x + y * y) * 2.5f);
                 return new Color(1, 1, 1, Mathf.Clamp01(spike + core * core));
             });
-            const int rr = 64, radius = 24;
+            // 角丸は 4 倍の解像度で作り、pixelsPerUnit を 4 倍にして見た目の角の大きさ (24) は変えない
+            const int rr = 256, radius = 96;
             RoundRect = MakeSprite(rr, (u, v) =>
             {
                 float x = u * rr, y = v * rr;
                 float cx = Mathf.Clamp(x, radius, rr - radius), cy = Mathf.Clamp(y, radius, rr - radius);
                 float d = Vector2.Distance(new Vector2(x, y), new Vector2(cx, cy));
                 return new Color(1, 1, 1, Mathf.Clamp01(radius - d + 0.5f));
-            }, new Vector4(radius, radius, radius, radius));
+            }, new Vector4(radius, radius, radius, radius), 400);
 
             // WebGL では OS フォントが使えないので、同梱した M PLUS Rounded 1c (Bold) を優先して使う
             Font = Resources.Load<Font>("Fonts/MPLUSRounded1c-Bold");
@@ -88,7 +89,7 @@ namespace TapTap
 
         delegate Color PixelFn(float u, float v);
 
-        static Sprite MakeSprite(int size, PixelFn shader, Vector4 border = default)
+        static Sprite MakeSprite(int size, PixelFn shader, Vector4 border = default, float pixelsPerUnit = 100)
         {
             var tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
             {
@@ -101,7 +102,7 @@ namespace TapTap
                     px[y * size + x] = shader((x + 0.5f) / size, (y + 0.5f) / size);
             tex.SetPixels(px);
             tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100, 0,
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), pixelsPerUnit, 0,
                 SpriteMeshType.FullRect, border);
         }
 
