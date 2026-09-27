@@ -62,7 +62,7 @@ Unity Gaming Services の Analytics (`com.unity.services.analytics` 6.3.0) で�
 | `roundEnded` | `result` (string: `clear` / `gameover` / `quit`), `score` (integer), `maxCombo` (integer), `playSeconds` (float), `livesLeft` (integer), `playCount` (integer) | タイムアップ (`clear`)、ライフ切れ (`gameover`)、一時停止から「最初からやり直す」(`quit`) |
 
 - `playSeconds` は一時停止中を除いた 1 ラウンドの実プレイ時間
-- スタート画面のボタンで送信をオフにできる (PlayerPrefs `taptap_analytics_consent`)。同意は Unity 6.3 の `EndUserConsent` API で SDK に伝える
+- 統計は常に裏で送信する。SDK への収集開始は Unity 6.3 の `EndUserConsent` API で行う
 - Unity Cloud のプロジェクトにリンクされていない場合は初期化に失敗するだけで、ゲームは普通に動く
 
 ### セットアップ

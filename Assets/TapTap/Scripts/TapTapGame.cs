@@ -82,7 +82,6 @@ namespace TapTap
         Text scoreText, bestText, startBestText, timerText, timeBonusText, meterLabel, comboLabel;
         Text toastMain, toastSub, slamText, fxBtnText, finalScore, finalCombo, finalBest, gameoverTitle;
         Text[] lifeTexts;
-        Text consentText;
         CanvasGroup toastGroup, slamGroup;
         GameObject startOverlay, pauseOverlay, gameoverOverlay, newBadge;
         readonly List<RectTransform> drifters = new List<RectTransform>();
@@ -121,7 +120,6 @@ namespace TapTap
             RenderMeter();
             RenderLives();
             RenderTimer();
-            RenderConsent();
         }
 
         static void EnsureSceneBasics()
@@ -356,25 +354,18 @@ namespace TapTap
         void BuildOverlays(Transform root)
         {
             // start
-            startOverlay = Overlay(root, "Start", 540, out var p);
-            Gfx.Label(p, "タプタプ", 30, TextPrimary).rectTransform.Place(new Vector2(0, 225), new Vector2(300, 40));
+            startOverlay = Overlay(root, "Start", 470, out var p);
+            Gfx.Label(p, "タプタプ", 30, TextPrimary).rectTransform.Place(new Vector2(0, 190), new Vector2(300, 40));
             var tag = Gfx.Label(p, "青と金を押し続けてコンボ、赤を押すとリセット。\n制限時間は60秒、金ボタンで+2秒。\n" +
                                    "10コンボでフィーバー突入、スコア2倍。\n出た瞬間に押せば PERFECT！", 14, TextDim, bold: false);
             tag.lineSpacing = 1.35f;
-            tag.rectTransform.Place(new Vector2(0, 135), new Vector2(300, 110));
-            startBestText = Stat(p, new Vector2(0, 40), "ベスト");
-            Gfx.Button(p, "スタート", new Vector2(0, -50), new Vector2(290, 52), Blue, 18, StartGame, out _);
-            Gfx.Button(p, "", new Vector2(0, -112), new Vector2(290, 36), PanelBorder, 13, () =>
-            {
-                analytics.Consent = !analytics.Consent;
-                RenderConsent();
-            }, out consentText);
-            var note = Gfx.Label(p, "匿名のプレイ統計（プレイ回数・スコア・プレイ時間など）を\n" +
-                                    "ゲーム改善のために送信します。上のボタンでオフにできます。\n\n" +
-                                    "強い光の点滅があります。気分が悪くなったら\n「演出 弱」に切り替えるか休憩してください。", 11,
+            tag.rectTransform.Place(new Vector2(0, 100), new Vector2(300, 110));
+            startBestText = Stat(p, new Vector2(0, 5), "ベスト");
+            Gfx.Button(p, "スタート", new Vector2(0, -85), new Vector2(290, 52), Blue, 18, StartGame, out _);
+            var note = Gfx.Label(p, "強い光の点滅があります。気分が悪くなったら\n「演出 弱」に切り替えるか休憩してください。", 11,
                 TextDim, bold: false);
             note.lineSpacing = 1.3f;
-            note.rectTransform.Place(new Vector2(0, -200), new Vector2(300, 90));
+            note.rectTransform.Place(new Vector2(0, -160), new Vector2(300, 40));
 
             // pause
             pauseOverlay = Overlay(root, "Pause", 270, out p);
@@ -761,8 +752,6 @@ namespace TapTap
         // =====================================================================
         // rendering
         // =====================================================================
-
-        void RenderConsent() => consentText.text = analytics.Consent ? "プレイ統計の送信：オン" : "プレイ統計の送信：オフ";
 
         void ApplyFxMode()
         {

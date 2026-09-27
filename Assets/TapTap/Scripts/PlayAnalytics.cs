@@ -17,11 +17,11 @@ namespace TapTap
     ///   roundEnded   : result (string: clear / gameover / quit), score (int), maxCombo (int),
     ///                  playSeconds (float), livesLeft (int), playCount (int)
     ///
+    /// 統計は常に裏で送信する (スタート画面の切り替えは設けない)。
     /// プロジェクトが Unity Cloud にリンクされていない場合やオフラインでも、ゲーム自体は普通に動く。
     /// </summary>
     public class PlayAnalytics : MonoBehaviour
     {
-        const string ConsentKey = "taptap_analytics_consent";
         const string PlayCountKey = "taptap_play_count";
 
         public static class Result
@@ -31,28 +31,15 @@ namespace TapTap
             public const string Quit = "quit";         // 一時停止から「最初からやり直す」
         }
 
-        bool ready;
         bool collecting;
-
-        /// <summary>プレイ統計を送るかどうか (既定はオン、スタート画面で切り替え可能)。</summary>
-        public bool Consent
-        {
-            get => PlayerPrefs.GetInt(ConsentKey, 1) == 1;
-            set
-            {
-                PlayerPrefs.SetInt(ConsentKey, value ? 1 : 0);
-                PlayerPrefs.Save();
-                ApplyConsent();
-            }
-        }
 
         async void Start()
         {
             try
             {
                 await UnityServices.InitializeAsync();
-                ready = true;
-                ApplyConsent();
+                StartCollection();
+                Debug.Log("[TapTap] Unity Analytics を初期化しました");
             }
             catch (Exception e)
             {
@@ -60,37 +47,34 @@ namespace TapTap
             }
         }
 
-        void ApplyConsent()
+        void StartCollection()
         {
-            if (!ready) return;
-            bool consent = Consent;
 #if ENABLE_UNITY_CONSENT
-            // Unity 6.3 以降の同意 API。Analytics SDK はこの状態に合わせて収集を開始/停止する
+            // Unity 6.3 以降の同意 API。Analytics SDK はこの状態を見て収集を開始する
             var state = EndUserConsent.GetConsentState();
-            state.AnalyticsIntent = consent ? ConsentStatus.Granted : ConsentStatus.Denied;
+            state.AnalyticsIntent = ConsentStatus.Granted;
             EndUserConsent.SetConsentState(state);
 #else
-            if (consent && !collecting) AnalyticsService.Instance.StartDataCollection();
-            else if (!consent && collecting) AnalyticsService.Instance.StopDataCollection();
+            AnalyticsService.Instance.StartDataCollection();
 #endif
-            collecting = consent;
+            collecting = true;
         }
 
         public void RoundStarted()
         {
             int count = PlayerPrefs.GetInt(PlayCountKey, 0) + 1;
             PlayerPrefs.SetInt(PlayCountKey, count);
-            Record(new CustomEvent("roundStarted") { { "playCount", count } });
+            Record("roundStarted", new CustomEvent("roundStarted") { { "playCount", count } });
         }
 
         public void RoundEnded(string result, int score, int maxCombo, float playSeconds, int livesLeft)
         {
-            Record(new CustomEvent("roundEnded")
+            Record("roundEnded", new CustomEvent("roundEnded")
             {
                 { "result", result },
                 { "score", score },
                 { "maxCombo", maxCombo },
-                { "playSeconds", (float)Math.Round(playSeconds, 1) },
+                { "playSeconds", Math.Round((double)playSeconds, 1) }, // float のままだと 5.80000019 のような誤差が出る
                 { "livesLeft", livesLeft },
                 { "playCount", PlayerPrefs.GetInt(PlayCountKey, 0) },
             });
@@ -98,12 +82,15 @@ namespace TapTap
             if (collecting) AnalyticsService.Instance.Flush();
         }
 
-        void Record(CustomEvent e)
+        void Record(string eventName, CustomEvent e)
         {
             if (!collecting) return;
             try
             {
                 AnalyticsService.Instance.RecordEvent(e);
+#if UNITY_EDITOR
+                Debug.Log("[TapTap] Analytics イベントを記録: " + eventName);
+#endif
             }
             catch (Exception ex)
             {
