@@ -379,7 +379,7 @@ namespace TapTap
             finalScore = Stat(p, new Vector2(-96, 10), "スコア");
             finalCombo = Stat(p, new Vector2(0, 10), "最大コンボ");
             finalBest = Stat(p, new Vector2(96, 10), "ベスト");
-            Gfx.Button(p, "もう一度", new Vector2(0, -100), new Vector2(290, 52), Blue, 18, StartGame, out _);
+            Gfx.Button(p, "スタート画面へ", new Vector2(0, -100), new Vector2(290, 52), Blue, 18, ShowStartScreen, out _);
             gameoverOverlay.SetActive(false);
         }
 
@@ -647,7 +647,7 @@ namespace TapTap
         // state transitions
         // =====================================================================
 
-        void StartGame()
+        void ResetRound()
         {
             score = 0; lives = 3; combo = 0; maxCombo = 0; feverCharge = 0; feverTime = 0f;
             timeLeft = TimeLimit; lastSec = 60; spawnTimer = 0.6f; lastLevel = 0; hitStop = 0f;
@@ -655,9 +655,24 @@ namespace TapTap
             scoreText.text = "0";
             RenderTimer();
             RenderMeter();
-            startOverlay.SetActive(false);
+            RenderLives();
             gameoverOverlay.SetActive(false);
             pauseOverlay.SetActive(false);
+        }
+
+        /// <summary>ゲームオーバー画面から、ベストスコアつきのスタート画面へ戻る。</summary>
+        void ShowStartScreen()
+        {
+            state = State.Ready;
+            ResetRound();
+            RenderBest();
+            startOverlay.SetActive(true);
+        }
+
+        void StartGame()
+        {
+            ResetRound();
+            startOverlay.SetActive(false);
             state = State.Playing;
             RenderLives();
             Slam("START!", Color.white);
