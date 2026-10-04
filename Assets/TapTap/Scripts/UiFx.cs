@@ -5,12 +5,12 @@ using UnityEngine.UI;
 namespace TapTap
 {
     /// <summary>
-    /// UI 上に描く軽量パーティクル (火花・リング・紙吹雪)。Image をプールして使い回す。
+    /// UI 上に描く軽量パーティクル (火花・リング・紙吹雪・破片・得点の光・泡)。Image をプールして使い回す。
     /// 速度は HTML 版の px/ms を 1000 倍して units/秒 に換算している。
     /// </summary>
     public class UiFx
     {
-        enum Kind { Spark, Ring, Confetti, Twinkle }
+        enum Kind { Spark, Ring, Confetti, Twinkle, Shard, Orb, Bubble }
 
         class P
         {
@@ -20,9 +20,11 @@ namespace TapTap
             public float life, max, size, g, rot, vr, radius;
             public Color color;
             public bool alive;
+            public Vector2 from, to, ctrl;      // Orb: 2 次ベジェで from → to へ飛ぶ
+            public System.Action onArrive;     // Orb: 到着時に呼ぶ
         }
 
-        const int MaxParticles = 700;
+        const int MaxParticles = 900;
 
         readonly RectTransform layer;
         readonly List<P> pool = new List<P>();
@@ -100,7 +102,67 @@ namespace TapTap
             p.img.sprite = Gfx.Star;
         }
 
-        public void ConfettiRain()
+        /// <summary>ボタンが割れたように、色つきの破片を回転させながら飛び散らせる。</summary>
+        public void Shatter(Vector2 at, Color color, float radius, int count)
+        {
+            if (!Strong) count = Mathf.CeilToInt(count * 0.5f);
+            for (int i = 0; i < count; i++)
+            {
+                var p = Get();
+                if (p == null) return;
+                float a = (i + Random.value * 0.8f) / count * Mathf.PI * 2f;
+                var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+                p.kind = Kind.Shard;
+                p.pos = at + dir * radius * Random.Range(0.1f, 0.6f);
+                p.vel = dir * Random.Range(260f, 620f) + new Vector2(0f, Random.Range(80f, 260f));
+                p.max = Random.Range(0.55f, 0.85f);
+                p.size = radius * Random.Range(0.45f, 0.85f);
+                p.color = Color.Lerp(color, Color.white, Random.value * 0.35f);
+                p.g = 1500f;
+                p.rot = Random.value * 360f;
+                p.vr = (Random.value < 0.5f ? -1f : 1f) * Random.Range(360f, 900f);
+                p.img.sprite = Gfx.Shard;
+            }
+        }
+
+        /// <summary>光の粒を from から to (スコア表示) へ弧を描いて飛ばし、着いたら onArrive を呼ぶ。</summary>
+        public void Orb(Vector2 from, Vector2 to, Color color, float delay, System.Action onArrive)
+        {
+            var p = Get();
+            if (p == null) { onArrive?.Invoke(); return; }
+            p.kind = Kind.Orb;
+            p.from = p.pos = from;
+            p.to = to;
+            var mid = (from + to) * 0.5f;
+            var side = new Vector2(-(to.y - from.y), to.x - from.x).normalized;
+            p.ctrl = mid + side * Random.Range(-140f, 140f) + new Vector2(0f, 60f);
+            p.life = -delay;
+            p.max = 0.48f;
+            p.size = Random.Range(20f, 28f);
+            p.color = color;
+            p.onArrive = onArrive;
+            p.img.sprite = Gfx.SoftDot;
+            p.img.rectTransform.localRotation = Quaternion.identity;
+            p.img.color = Color.clear;
+        }
+
+        /// <summary>下からゆらゆら浮かび上がる光の泡 (フィーバー中の演出)。</summary>
+        public void Bubble(Vector2 at, Color color, float size)
+        {
+            var p = Get();
+            if (p == null) return;
+            p.kind = Kind.Bubble;
+            p.pos = p.from = at;
+            p.vel = new Vector2(0f, Random.Range(140f, 300f));
+            p.max = Random.Range(2.2f, 3.4f);
+            p.size = size;
+            p.color = color;
+            p.rot = Random.value * 6f; // ゆれの位相
+            p.img.sprite = Gfx.Ring;
+            p.img.rectTransform.localRotation = Quaternion.identity;
+        }
+
+        public void ConfettiRain(int count = 160)
         {
             var colors = new[]
             {
@@ -108,7 +170,7 @@ namespace TapTap
                 Gfx.Hex("#7dff9a"), Gfx.Hex("#b36bff"), Color.white,
             };
             var r = layer.rect;
-            int n = Strong ? 160 : 50;
+            int n = Strong ? count : Mathf.CeilToInt(count * 0.3f);
             for (int i = 0; i < n; i++)
             {
                 var p = Get();
@@ -132,9 +194,16 @@ namespace TapTap
             {
                 if (!p.alive) continue;
                 p.life += dt;
+                if (p.life < 0f) continue; // Orb の発射待ち
                 float t = p.life / p.max;
                 if (t >= 1f)
                 {
+                    if (p.kind == Kind.Orb)
+                    {
+                        var arrive = p.onArrive;
+                        p.onArrive = null;
+                        arrive?.Invoke();
+                    }
                     p.alive = false;
                     p.img.gameObject.SetActive(false);
                     continue;
@@ -163,6 +232,29 @@ namespace TapTap
                         rt.localRotation = Quaternion.Euler(0, 0, p.rot);
                         c.a = Mathf.Sin(Mathf.PI * t);
                         break;
+                    case Kind.Shard:
+                        p.vel.y -= p.g * dt;
+                        p.pos += p.vel * dt;
+                        p.rot += p.vr * dt;
+                        float ss = p.size * (1f - t * 0.5f);
+                        rt.sizeDelta = new Vector2(ss * 0.7f, ss);
+                        rt.localRotation = Quaternion.Euler(0, 0, p.rot);
+                        c.a = t < 0.7f ? 1f : (1f - t) / 0.3f;
+                        break;
+                    case Kind.Orb:
+                        float e = t * t * (3f - 2f * t); // 出だしと到着をなめらかに
+                        float u1 = 1f - e;
+                        p.pos = u1 * u1 * p.from + 2f * u1 * e * p.ctrl + e * e * p.to;
+                        float os = p.size * (1f - 0.4f * t);
+                        rt.sizeDelta = new Vector2(os, os);
+                        c.a = Mathf.Min(1f, t * 6f);
+                        break;
+                    case Kind.Bubble:
+                        p.pos.y += p.vel.y * dt;
+                        p.pos.x = p.from.x + Mathf.Sin(p.life * 3f + p.rot) * 18f;
+                        rt.sizeDelta = new Vector2(p.size, p.size);
+                        c.a *= Mathf.Sin(Mathf.PI * t) * 0.8f;
+                        break;
                     case Kind.Confetti:
                         p.vel.y -= p.g * dt;
                         p.pos += p.vel * dt;
@@ -174,6 +266,7 @@ namespace TapTap
                         break;
                 }
                 if (p.kind != Kind.Confetti) rt.localScale = Vector3.one;
+                if (p.kind == Kind.Ring || p.kind == Kind.Orb || p.kind == Kind.Bubble) rt.localRotation = Quaternion.identity;
                 rt.anchoredPosition = p.pos;
                 p.img.color = c;
             }

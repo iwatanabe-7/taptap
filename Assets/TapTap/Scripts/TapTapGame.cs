@@ -96,6 +96,12 @@ namespace TapTap
 
         // ---------- animation state ----------
         float scoreBumpT = 9f, slamT = 9f, toastT = 9f, flashT = 9f, beatGlowT = 9f;
+        Image raysImg;                       // フィーバー中に背景で回る放射状の光
+        float raysAlpha, bubbleT;
+        int shownScore;                      // 画面のスコア (得点の光がスコア表示に届いた分だけ増える)
+        float resultT = -1f, lastTickT;      // リザルトのスコア数え上げ (-1 = 停止中)
+        int resultTarget, resultShown;
+        bool resultDone;
         float shakeT = 9f, shakeDur = 1f, glitchT = 9f, gridPunchT = 9f, timeBonusT = 9f, lastFlash = -9f;
         bool shakeBig;
         readonly List<(Text text, float t, float baseY)> pops = new List<(Text, float, float)>();
@@ -229,6 +235,10 @@ namespace TapTap
 
             feverTint = Gfx.Img("FeverTint", bg.transform, null, Color.clear);
             feverTint.rectTransform.Stretch();
+
+            raysImg = Gfx.Img("FeverRays", bg.transform, Gfx.Rays, Color.clear);
+            raysImg.rectTransform.anchorMin = raysImg.rectTransform.anchorMax = new Vector2(0.5f, 0.45f);
+            raysImg.rectTransform.sizeDelta = new Vector2(1700, 1700);
 
             string[] icons = { "♥", "★", "♪", "✦", "♥", "★", "♪", "✦" };
             float[] xs = { .08f, .22f, .38f, .55f, .68f, .80f, .14f, .90f };
@@ -561,7 +571,6 @@ namespace TapTap
                 if (combo % 5 == 0) gain += 1;
                 if (fever) gain *= 2;
                 score += gain;
-                RenderScore();
 
                 Color[] cols = isGold
                     ? new[] { Gfx.Hex("#ffe08a"), Gold, Gfx.Hex("#fff6d6"), Gfx.Hex("#ffb347") }
@@ -572,6 +581,12 @@ namespace TapTap
                 fx.Burst(p, cols, Mathf.RoundToInt((isGold ? 44 : 18) * intensity), 0.35f * intensity, 0.56f,
                     isGold ? 5f : 3.6f);
                 fx.RingAt(p, isGold ? Gold : fever ? Pink : BlueGlow, w * (isGold ? 2.4f : 1.3f));
+                fx.Shatter(p, isGold ? Gold : fever ? cols[combo % 2] : BlueGlow, w * 0.5f, isGold ? 14 : 9);
+                if (isGold)
+                    for (int i = 0; i < 6; i++)
+                        fx.Twinkle(p + UnityEngine.Random.insideUnitCircle * w, Color.white, w * UnityEngine.Random.Range(0.5f, 0.8f));
+                ComboTierHit(p, w);
+                SendScoreOrbs(p, gain, isGold ? Gold : fever ? Pink : BlueGlow);
                 gridPunchT = 0f;
 
                 PopText(cell, perfect ? "PERFECT +" + gain : "+" + gain, perfect);
@@ -592,6 +607,7 @@ namespace TapTap
                 }
                 else if (combo % 5 == 0)
                 {
+                    if (combo % 10 == 0) ComboMilestone();
                     Slam(combo + " COMBO", Color.white);
                     Flash(new Color(0.47f, 0.67f, 1f), 0.35f);
                     hitStop = 0.045f;
@@ -675,6 +691,8 @@ namespace TapTap
             timeLeft = TimeLimit; lastSec = 60; spawnTimer = 0.6f; lastLevel = 0; hitStop = 0f; playTime = 0f;
             foreach (var c in cells) ClearCell(c);
             scoreText.text = "0";
+            shownScore = 0;
+            resultT = -1f;
             RenderTimer();
             RenderMeter();
             RenderLives();
@@ -726,7 +744,12 @@ namespace TapTap
             }
             RenderBest();
             RenderLives();
-            finalScore.text = score.ToString();
+            SyncShownScore();
+            // リザルトのスコアは 0 から数え上げる (パネルが出たときに開始)
+            finalScore.text = "0";
+            resultTarget = score;
+            resultShown = 0;
+            resultDone = false;
             finalBest.text = best.ToString();
             finalCombo.text = maxCombo.ToString();
             newBadge.SetActive(isNew);
@@ -734,10 +757,26 @@ namespace TapTap
             Later(0.5f, () =>
             {
                 gameoverOverlay.SetActive(true);
+                resultT = 0f;
+                fx.ConfettiRain(isNew ? 260 : 60);
                 if (isNew)
                 {
-                    fx.ConfettiRain();
                     sfx.Chord(new[] { 523f, 659f, 784f, 1047f, 1319f }, 0.4f, Sfx.Wave.Triangle, 0.12f);
+                    // 新記録: 画面のあちこちで花火のように弾ける
+                    var r = fxLayer.rect;
+                    for (int i = 0; i < 5; i++)
+                    {
+                        var at = new Vector2(UnityEngine.Random.Range(r.xMin * 0.7f, r.xMax * 0.7f),
+                            UnityEngine.Random.Range(r.yMin * 0.2f, r.yMax * 0.7f));
+                        Later(0.15f + i * 0.22f, () =>
+                        {
+                            fx.Burst(at, new[] { Pink, Cyan, Gold, Color.white, Gfx.Hex("#7dff9a") }, 70, 0.75f, 0.9f, 4.5f, 300f);
+                            fx.RingAt(at, Gold, 160f);
+                            for (int k = 0; k < 5; k++)
+                                fx.Twinkle(at + UnityEngine.Random.insideUnitCircle * 90f, Color.white, UnityEngine.Random.Range(30f, 50f));
+                            sfx.Noise(0.12f, 0.1f);
+                        });
+                    }
                 }
             });
         }
@@ -770,10 +809,77 @@ namespace TapTap
             if (fx != null) fx.Strong = strongFx;
         }
 
-        void RenderScore()
+        /// <summary>押した場所から得点の光をスコア表示へ飛ばす (最大 5 粒に分け、届いた分だけ表示を増やす)。</summary>
+        void SendScoreOrbs(Vector2 from, int gain, Color color)
         {
-            scoreText.text = score.ToString();
+            Vector2 to = fxLayer.InverseTransformPoint(scoreText.rectTransform.position);
+            int orbs = Mathf.Clamp(gain, 1, strongFx ? 5 : 2), rest = gain;
+            for (int i = 0; i < orbs; i++)
+            {
+                int part = i == orbs - 1 ? rest : gain / orbs;
+                rest -= part;
+                bool last = i == orbs - 1;
+                fx.Orb(from, to, color, i * 0.05f, () =>
+                {
+                    AddShownScore(part);
+                    if (last) fx.RingAt(to, Gold, 70f);
+                });
+            }
+        }
+
+        void AddShownScore(int add)
+        {
+            // 前のラウンドの光が遅れて届いても、実際のスコアを超えないようにする
+            shownScore = Mathf.Min(score, shownScore + add);
+            scoreText.text = shownScore.ToString();
             scoreBumpT = 0f;
+        }
+
+        void SyncShownScore()
+        {
+            shownScore = score;
+            scoreText.text = score.ToString();
+        }
+
+        /// <summary>コンボ数に応じて (10 / 20 / 30 コンボ以上で) タップ時の弾け方を一段ずつ派手にする。</summary>
+        int ComboTier => Mathf.Min(combo / 10, 3);
+
+        void ComboTierHit(Vector2 p, float w)
+        {
+            int tier = ComboTier;
+            if (tier >= 1) fx.RingAt(p, Cyan, w * 2.1f);
+            if (tier >= 2)
+                for (int i = 0; i < 4; i++)
+                    fx.Twinkle(p + UnityEngine.Random.insideUnitCircle * w * 0.9f, Color.white, w * 0.55f);
+            if (tier >= 3)
+                fx.Burst(p, new[] { Pink, Cyan, Gold, Gfx.Hex("#7dff9a"), Gfx.Hex("#b36bff") }, 24, 0.7f, 0.7f, 4f);
+        }
+
+        /// <summary>10 コンボごとにグリッド全体を光の輪と星で包む。</summary>
+        void ComboMilestone()
+        {
+            Vector2 c = fxLayer.InverseTransformPoint(gridRT.position);
+            float half = GridHalf * gridScale;
+            fx.RingAt(c, Cyan, half * 1.7f);
+            fx.RingAt(c, Gold, half * 1.25f);
+            for (int i = 0; i < 16; i++)
+            {
+                // グリッドの外周に沿って星を並べる
+                float t = i / 16f * 4f;
+                int side = (int)t;
+                float f = t - side;
+                var at = side switch
+                {
+                    0 => new Vector2(Mathf.Lerp(-half, half, f), half),
+                    1 => new Vector2(half, Mathf.Lerp(half, -half, f)),
+                    2 => new Vector2(Mathf.Lerp(half, -half, f), -half),
+                    _ => new Vector2(-half, Mathf.Lerp(-half, half, f)),
+                };
+                fx.Twinkle(c + at, i % 2 == 0 ? Color.white : Gold, UnityEngine.Random.Range(34f, 52f));
+            }
+            for (int i = 0; i < 4; i++)
+                fx.Burst(c + new Vector2(i < 2 ? -half : half, i % 2 == 0 ? half : -half),
+                    new[] { Cyan, Pink, Gold, Color.white }, 16, 0.5f, 0.7f, 4f);
         }
 
         void RenderBest()
@@ -825,8 +931,31 @@ namespace TapTap
             // fever backdrop / grid
             feverTint.color = fever ? Color.HSVToRGB(now / 2.4f % 1f, 0.8f, 1f) * new Color(1, 1, 1, strongFx ? 0.16f : 0.08f) : Color.clear;
             float pulse = Mathf.PingPong(now * 2f, 1f);
-            gridBorder.color = fever ? Color.Lerp(Pink, Cyan, pulse) : PanelBorder;
-            gridGlow.color = fever ? Color.Lerp(Pink, Cyan, pulse) * new Color(1, 1, 1, 0.35f) : Color.clear;
+            // フィーバー以外でも、コンボが続くほどグリッドの枠と後光が強く光る
+            float tierGlow = state == State.Playing ? ComboTier / 3f : 0f;
+            gridBorder.color = fever ? Color.Lerp(Pink, Cyan, pulse)
+                : Color.Lerp(PanelBorder, Cyan, tierGlow * (0.6f + 0.4f * pulse));
+            gridGlow.color = fever ? Color.Lerp(Pink, Cyan, pulse) * new Color(1, 1, 1, 0.35f)
+                : BlueGlow * new Color(1, 1, 1, 0.22f * tierGlow * (0.7f + 0.3f * pulse));
+
+            // フィーバー: 背景で放射状の光がゆっくり回り、下から光の泡が湧き上がる
+            raysAlpha = Mathf.MoveTowards(raysAlpha, fever ? (strongFx ? 0.2f : 0.09f) : 0f, dt * 0.8f);
+            raysImg.color = Color.HSVToRGB(now / 3f % 1f, 0.45f, 1f) * new Color(1, 1, 1, raysAlpha);
+            raysImg.rectTransform.localRotation = Quaternion.Euler(0, 0, now * 16f);
+            if (fever && state == State.Playing)
+            {
+                bubbleT -= dt;
+                if (bubbleT <= 0f)
+                {
+                    bubbleT = strongFx ? 0.07f : 0.22f;
+                    var fr = fxLayer.rect;
+                    var bubbleColors = new[] { Pink, Cyan, Gold, Color.white };
+                    fx.Bubble(new Vector2(UnityEngine.Random.Range(fr.xMin, fr.xMax), fr.yMin - 20f),
+                        bubbleColors[UnityEngine.Random.Range(0, bubbleColors.Length)], UnityEngine.Random.Range(14f, 42f));
+                }
+            }
+
+            AnimateResult(dt, now);
             gridPunchT += dt;
             gridRT.localScale = Vector3.one * (gridScale * (gridPunchT < 0.08f ? 1.035f : 1f));
 
@@ -881,6 +1010,51 @@ namespace TapTap
             AnimatePops(dt);
         }
 
+        /// <summary>リザルトのスコアを 0 から数え上げ、止まった瞬間に弾ませる。新記録バッジは脈打たせる。</summary>
+        void AnimateResult(float dt, float now)
+        {
+            if (newBadge.activeSelf)
+                newBadge.transform.localScale = Vector3.one * (1f + 0.08f * Mathf.Sin(now * 8f));
+            if (resultT < 0f) return;
+
+            resultT += dt;
+            var rt = finalScore.rectTransform;
+            float dur = Mathf.Clamp(0.4f + resultTarget * 0.004f, 0.6f, 1.6f);
+            if (!resultDone)
+            {
+                float k = Mathf.Clamp01(resultT / dur);
+                float e = 1f - (1f - k) * (1f - k) * (1f - k);
+                int shown = Mathf.RoundToInt(resultTarget * e);
+                if (shown != resultShown)
+                {
+                    resultShown = shown;
+                    finalScore.text = shown.ToString();
+                    if (now - lastTickT > 0.045f)
+                    {
+                        sfx.Tone(600f + 900f * e, 0.04f, Sfx.Wave.Square, 0.05f);
+                        lastTickT = now;
+                    }
+                }
+                rt.localScale = Vector3.one * (1f + 0.08f * Mathf.Sin(resultT * 40f) * (1f - k));
+                if (k >= 1f)
+                {
+                    resultDone = true;
+                    resultT = 0f; // ここからは「弾み」の経過時間として使う
+                    finalScore.text = resultTarget.ToString();
+                    Vector2 at = fxLayer.InverseTransformPoint(rt.position);
+                    fx.RingAt(at, Gold, 90f);
+                    fx.Burst(at, new[] { Gold, Color.white, Cyan }, 26, 0.45f, 0.6f, 4f, 300f);
+                    sfx.Chord(new[] { 784f, 1175f }, 0.15f, Sfx.Wave.Triangle, 0.1f);
+                }
+            }
+            else
+            {
+                float k = Mathf.Clamp01(resultT / 0.3f);
+                rt.localScale = Vector3.one * Mathf.Lerp(1.45f, 1f, 1f - (1f - k) * (1f - k));
+                if (k >= 1f) resultT = -1f;
+            }
+        }
+
         // グリッドの元の配置 (列の上端からの距離) と大きさ
         const float GridCenterFromTop = 560f, GridHalf = 186f, RulesBottomFromTop = 360f, MaxGridScale = 1.35f;
 
@@ -925,7 +1099,7 @@ namespace TapTap
                         break;
                     case CellKind.Red:
                         body = RedGlow; glow = Red * new Color(1, 1, 1, 0.65f); shine = 0.7f;
-                        scale = c.anim < 0.18f ? PopIn(c.anim) : 1f + 0.07f * Mathf.PingPong((c.anim - 0.18f) / 0.45f, 1f);
+                        scale = c.anim < PopDuration ? PopIn(c.anim) : 1f + 0.07f * Mathf.PingPong((c.anim - PopDuration) / 0.45f, 1f);
                         break;
                     case CellKind.Gold:
                     {
@@ -935,7 +1109,7 @@ namespace TapTap
                         glow = Color.Lerp(GoldDeep, Gfx.Hex("#ffe27a"), glint);
                         shine = Mathf.Lerp(0.8f, 1f, glint);
                         float spin = c.anim % 1f;
-                        scale = c.anim < 0.18f ? PopIn(c.anim) : 1f + 0.1f * Mathf.Sin(spin * Mathf.PI);
+                        scale = c.anim < PopDuration ? PopIn(c.anim) : 1f + 0.1f * Mathf.Sin(spin * Mathf.PI);
                         rot = -spin * 360f;
                         glowScale = scale * Mathf.Lerp(1.4f, 1.85f, glint);
                         EmitGoldSparkles(c, dt);
@@ -975,7 +1149,16 @@ namespace TapTap
                 w * UnityEngine.Random.Range(0.4f, 0.65f));
         }
 
-        static float PopIn(float t) => t < 0.18f ? Mathf.Lerp(0.55f, 1f, 1f - (1f - t / 0.18f) * (1f - t / 0.18f)) : 1f;
+        const float PopDuration = 0.26f;
+
+        /// <summary>出現時に一度大きくはみ出してから戻る (easeOutBack)。</summary>
+        static float PopIn(float t)
+        {
+            if (t >= PopDuration) return 1f;
+            const float c1 = 2.4f, c3 = c1 + 1f;
+            float x = t / PopDuration - 1f;
+            return Mathf.LerpUnclamped(0.35f, 1f, 1f + c3 * x * x * x + c1 * x * x);
+        }
 
         // ---------- slam text ----------
 

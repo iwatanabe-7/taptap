@@ -9,7 +9,7 @@ namespace TapTap
     /// </summary>
     public static class Gfx
     {
-        public static Sprite ShadedCircle, SoftDot, Ring, RoundRect, Vignette, Radial, Star;
+        public static Sprite ShadedCircle, SoftDot, Ring, RoundRect, Vignette, Radial, Star, Shard, Rays;
         public static Font Font;
         static bool bundledFont;
 
@@ -64,6 +64,23 @@ namespace TapTap
                 float core = Mathf.Clamp01(1f - Mathf.Sqrt(x * x + y * y) * 2.5f);
                 return new Color(1, 1, 1, Mathf.Clamp01(spike + core * core));
             });
+            // ボタンが割れたときの破片 (先の尖った三角形、根元ほど明るい)
+            Shard = MakeSprite(64, (u, v) =>
+            {
+                float d = Mathf.Min(EdgeDistance(u, v, 0.5f, 0.96f, 0.08f, 0.12f),
+                    Mathf.Min(EdgeDistance(u, v, 0.08f, 0.12f, 0.92f, 0.28f), EdgeDistance(u, v, 0.92f, 0.28f, 0.5f, 0.96f)));
+                float b = Mathf.Lerp(0.75f, 1f, 1f - v);
+                return new Color(b, b, b, Mathf.Clamp01(d * 64f));
+            });
+            // フィーバー中に背景で回る放射状の光 (12 本)
+            Rays = MakeSprite(256, (u, v) =>
+            {
+                float x = u * 2f - 1f, y = v * 2f - 1f;
+                float d = Mathf.Sqrt(x * x + y * y);
+                float ray = Mathf.Pow(Mathf.Max(0f, Mathf.Cos(Mathf.Atan2(y, x) * 12f)), 4f);
+                float fade = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(1f, 0.1f, d));
+                return new Color(1, 1, 1, ray * fade);
+            });
             // 角丸は 4 倍の解像度で作り、pixelsPerUnit を 4 倍にして見た目の角の大きさ (24) は変えない
             const int rr = 256, radius = 96;
             RoundRect = MakeSprite(rr, (u, v) =>
@@ -88,6 +105,13 @@ namespace TapTap
         }
 
         delegate Color PixelFn(float u, float v);
+
+        /// <summary>点 (px,py) から有向辺 (ax,ay)→(bx,by) までの符号付き距離 (反時計回りの三角形なら内側が正)。</summary>
+        static float EdgeDistance(float px, float py, float ax, float ay, float bx, float by)
+        {
+            float ex = bx - ax, ey = by - ay;
+            return ((px - ax) * ey - (py - ay) * ex) / Mathf.Sqrt(ex * ex + ey * ey) * -1f;
+        }
 
         static Sprite MakeSprite(int size, PixelFn shader, Vector4 border = default, float pixelsPerUnit = 100)
         {
