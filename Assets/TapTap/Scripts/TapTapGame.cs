@@ -22,10 +22,11 @@ namespace TapTap
         const float PerfectWindow = 0.28f;
         const float TimeLimit = 30f;
         const float GoldTimeBonus = 2f;
+        const float WarningTime = 5f; // 残りこの秒数からカウントダウン音とタイマーの赤点滅
         const float FlashMinInterval = 0.34f; // 強い光の点滅は約 3 回/秒以下に制限
         const float RefW = 540f, RefH = 960f;
 
-        const string BestKey = "taptap_best";
+        const string BestKey = "taptap_best_30s"; // 60 秒版のベスト (taptap_best) とは別に記録する
         const string FxKey = "taptap_fx_strong";
 
         enum State { Ready, Playing, Paused, GameOver }
@@ -457,7 +458,7 @@ namespace TapTap
             if (sec != lastSec)
             {
                 lastSec = sec;
-                if (sec <= 10 && sec > 0)
+                if (sec <= WarningTime && sec > 0)
                 {
                     sfx.Tone(sec <= 3 ? 1320 : 880, 0.07f, Sfx.Wave.Square, sec <= 3 ? 0.14f : 0.08f);
                     if (sec <= 3) { Slam(sec.ToString(), Color.white); Vibrate(); }
@@ -928,7 +929,7 @@ namespace TapTap
             scoreText.color = bt < 1f ? Color.Lerp(Gold, TextPrimary, bt) : fever ? Color.white : TextPrimary;
 
             // timer warning
-            bool warn = state == State.Playing && timeLeft <= 10f;
+            bool warn = state == State.Playing && timeLeft <= WarningTime;
             timerText.color = warn ? Gfx.Hex("#ff6b6b") : TextPrimary;
             timerRT.localScale = Vector3.one * (warn ? 1f + 0.12f * Mathf.PingPong(now * 2f, 1f) : 1f);
 
