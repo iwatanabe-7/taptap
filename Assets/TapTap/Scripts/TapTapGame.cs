@@ -494,7 +494,7 @@ namespace TapTap
             if (spawnTimer <= 0f)
             {
                 DoSpawn();
-                var d = GetDifficulty(score);
+                var d = GetDifficulty(playTime);
                 spawnTimer = d.spawnInterval * (feverTime > 0f ? 0.7f : 1f) + UnityEngine.Random.Range(-0.07f, 0.07f);
             }
 
@@ -507,18 +507,28 @@ namespace TapTap
             }
         }
 
-        static Difficulty GetDifficulty(int s) => new Difficulty
+        const float WarmUpTime = 10f; // 最初の 10 秒は慣らし (簡単なまま)
+
+        /// <summary>
+        /// 難易度はスコアではなく経過時間で決める (上手な人ほど序盤から急に難しくなるのを防ぐ)。
+        /// 最初の 10 秒は一定で簡単、そこから 60 秒にかけて一定のペースで少しずつ上げる。
+        /// </summary>
+        static Difficulty GetDifficulty(float t)
         {
-            spawnInterval = Mathf.Max(0.34f, 0.86f - s * 0.006f),
-            activeDuration = Mathf.Max(0.6f, 1.35f - s * 0.008f),
-            maxSimultaneous = s < 8 ? 1 : s < 20 ? 2 : s < 45 ? 3 : 4,
-            redRatio = Mathf.Min(0.42f, 0.22f + s * 0.0025f),
-            goldRatio = 0.06f,
-        };
+            float k = Mathf.InverseLerp(WarmUpTime, TimeLimit, t);
+            return new Difficulty
+            {
+                spawnInterval = Mathf.Lerp(0.95f, 0.55f, k),
+                activeDuration = Mathf.Lerp(1.5f, 0.85f, k),
+                maxSimultaneous = t < 15f ? 1 : t < 32f ? 2 : 3,
+                redRatio = t < WarmUpTime ? 0.15f : Mathf.Lerp(0.18f, 0.32f, k),
+                goldRatio = 0.06f,
+            };
+        }
 
         void DoSpawn()
         {
-            var d = GetDifficulty(score);
+            var d = GetDifficulty(playTime);
             var idle = new List<Cell>();
             foreach (var c in cells) if (c.kind == CellKind.Idle) idle.Add(c);
             int count = Mathf.Min(d.maxSimultaneous + (feverTime > 0f ? 1 : 0), idle.Count);
