@@ -20,7 +20,7 @@ namespace TapTap
         const int FeverCombo = 10;
         const float FeverDuration = 7f;
         const float PerfectWindow = 0.28f;
-        const float TimeLimit = 60f;
+        const float TimeLimit = 30f;
         const float GoldTimeBonus = 2f;
         const float FlashMinInterval = 0.34f; // 強い光の点滅は約 3 回/秒以下に制限
         const float RefW = 540f, RefH = 960f;
@@ -68,7 +68,7 @@ namespace TapTap
         // ---------- game state ----------
         State state = State.Ready;
         readonly List<Cell> cells = new List<Cell>();
-        int score, best, lives = 3, combo, maxCombo, feverCharge, lastLevel, lastSec = 60, beatCount;
+        int score, best, lives = 3, combo, maxCombo, feverCharge, lastLevel, lastSec = (int)TimeLimit, beatCount;
         float spawnTimer, hitStop, feverTime, beatTimer, timeLeft = TimeLimit;
         float playTime; // 1 ラウンドの実プレイ時間 (一時停止中は数えない)
         bool strongFx = true;
@@ -287,7 +287,7 @@ namespace TapTap
 
             var timer = Gfx.Panel("Timer", col, new Vector2(0, Top(222)), new Vector2(140, 34), PanelBg, PanelBorder);
             timerRT = (RectTransform)timer.transform.parent;
-            timerText = Gfx.Label(timer.transform, "TIME 60.0", 18, TextPrimary);
+            timerText = Gfx.Label(timer.transform, "TIME " + TimeLimit.ToString("0.0"), 18, TextPrimary);
             timerText.rectTransform.Stretch();
             timeBonusText = Gfx.Label(col, "+2秒", 15, Gfx.Hex("#7dff9a"), TextAnchor.MiddleLeft);
             timeBonusText.rectTransform.Place(new Vector2(110, Top(222)), new Vector2(60, 24));
@@ -376,7 +376,7 @@ namespace TapTap
             // start
             startOverlay = Overlay(root, "Start", 470, out var p);
             Gfx.Label(p, "タプタプ", 30, TextPrimary).rectTransform.Place(new Vector2(0, 190), new Vector2(300, 40));
-            var tag = Gfx.Label(p, "青と金を押し続けてコンボ、赤を押すとリセット。\n制限時間は60秒、金ボタンで+2秒。\n" +
+            var tag = Gfx.Label(p, "青と金を押し続けてコンボ、赤を押すとリセット。\n制限時間は" + TimeLimit + "秒、金ボタンで+2秒。\n" +
                                    "10コンボでフィーバー突入、スコア2倍。\n出た瞬間に押せば PERFECT！", 14, TextDim, bold: false);
             tag.lineSpacing = 1.35f;
             tag.rectTransform.Place(new Vector2(0, 100), new Vector2(300, 110));
@@ -511,7 +511,7 @@ namespace TapTap
 
         /// <summary>
         /// 難易度はスコアではなく経過時間で決める (上手な人ほど序盤から急に難しくなるのを防ぐ)。
-        /// 最初の 10 秒は一定で簡単、そこから 60 秒にかけて一定のペースで少しずつ上げる。
+        /// 最初の 10 秒は一定で簡単、そこから制限時間 (30 秒) にかけて一定のペースで少しずつ上げる。
         /// </summary>
         static Difficulty GetDifficulty(float t)
         {
@@ -520,7 +520,7 @@ namespace TapTap
             {
                 spawnInterval = Mathf.Lerp(0.95f, 0.55f, k),
                 activeDuration = Mathf.Lerp(1.5f, 0.85f, k),
-                maxSimultaneous = t < 15f ? 1 : t < 32f ? 2 : 3,
+                maxSimultaneous = t < 14f ? 1 : t < 22f ? 2 : 3,
                 redRatio = t < WarmUpTime ? 0.15f : Mathf.Lerp(0.18f, 0.32f, k),
                 goldRatio = 0.06f,
             };
@@ -698,7 +698,7 @@ namespace TapTap
         void ResetRound()
         {
             score = 0; lives = 3; combo = 0; maxCombo = 0; feverCharge = 0; feverTime = 0f;
-            timeLeft = TimeLimit; lastSec = 60; spawnTimer = 0.6f; lastLevel = 0; hitStop = 0f; playTime = 0f;
+            timeLeft = TimeLimit; lastSec = Mathf.CeilToInt(TimeLimit); spawnTimer = 0.6f; lastLevel = 0; hitStop = 0f; playTime = 0f;
             foreach (var c in cells) ClearCell(c);
             scoreText.text = "0";
             shownScore = 0;
